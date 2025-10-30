@@ -1,0 +1,12 @@
+aio-pika==9.4.1
+alembic==1.16.3
+annotated-types==0.7.0
+fastapi==0.116.0
+psycopg2-binary==2.9.9
+pydantic==2.11.7
+pydantic_core==2.33.2
+python-dotenv==1.1.1
+python-jose==3.5.0
+python-multipart==0.0.20
+SQLAlchemy==2.0.41
+uvicorn==0.35.0

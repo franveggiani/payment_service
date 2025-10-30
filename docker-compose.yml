@@ -1,0 +1,87 @@
+services:
+  backend:
+    build:
+      context: ./
+      dockerfile: Dockerfile
+    container_name: payments_api
+    env_file:
+      - .env
+    ports:
+      - "8005:8005"
+    volumes:
+      - .:/app
+    environment:
+      - PYTHONUNBUFFERED=1
+      - RABBITMQ_URL=amqp://${RABBIT_USER:-payments}:${RABBIT_PASSWORD:-payments}@rabbitmq:5672/
+    depends_on:
+      - db
+      - rabbitmq
+      - db-seeder
+      - consumer
+
+  rabbitmq:
+    image: rabbitmq:3.13-management
+    container_name: payments_rabbit
+    hostname: rabbitmq
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    environment:
+      RABBITMQ_DEFAULT_USER: ${RABBIT_USER:-payments}
+      RABBITMQ_DEFAULT_PASS: ${RABBIT_PASSWORD:-payments}
+    volumes:
+      - rabbitmq-data:/var/lib/rabbitmq
+    restart: unless-stopped
+
+  db:
+    container_name: payments_db
+    image: postgis/postgis:16-3.4
+    environment:
+      POSTGRES_USER: ${DB_USERNAME}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+      POSTGRES_DB: ${DATABASE}
+    ports:
+      - "5432:5432"
+    volumes:
+      - ./initdb:/docker-entrypoint-initdb.d
+      - pgdata:/var/lib/postgresql/data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB -h 127.0.0.1"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  db-seeder:
+    build:
+      context: ./
+      dockerfile: Dockerfile
+    container_name: payments_seeder
+    command: ["python", "-m", "seeds.seed_payment_data"]
+    env_file:
+      - .env
+    volumes:
+      - .:/app
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: "no"
+
+  consumer:
+    build:
+      context: ./
+      dockerfile: Dockerfile
+    container_name: payments_consumer
+    command: ["python", "-m", "app.rabbit_consumer"]
+    env_file:
+      - .env
+    volumes:
+      - .:/app
+    depends_on:
+      - rabbitmq
+      - db
+    restart: unless-stopped
+
+volumes:
+  pgdata:
+  rabbitmq-data:
