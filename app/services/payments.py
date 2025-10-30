@@ -31,6 +31,19 @@ def create_payment_logic(request: create_payment_request, db: Session) -> create
     db.commit()
     db.refresh(payment)
 
+    # Publicar evento de nuevo pago / cambio de estado inicial
+    publish_json_background(
+        STATUS_QUEUE,
+        {
+            "event": "payment_status_changed",
+            "payment_id": payment.id,
+            "order_id": payment.orden_id,
+            "previous_status": None,
+            "new_status": estado_pago.nombre_estado,
+            "changed_at": datetime.utcnow().isoformat(),
+        },
+    )
+
     return create_payment_out(
         nro_cuenta=payment.nro_cuenta,
         monto_pagado=payment.monto_pagado,

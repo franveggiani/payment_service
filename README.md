@@ -100,12 +100,6 @@ Servicios expuestos:
 - Catálogos: `tipos_metodos_pago`, `marcas_metodos_pago`, `gateways_metodos_pago`.
 Seeds iniciales: ver `seeds/seed_payment_data.py`.
 
-**Consideraciones y Buenas Prácticas**
-- No almacenar PAN completo de tarjetas en texto plano en producción. El modelo actual permite `numero_tarjeta`; en entornos reales, tokenizar/guardar sólo últimos 4 dígitos y manejar el resto vía gateway.
-- Validar y sanear inputs en los endpoints; ya se valida que `nro_tarjeta` contenga sólo números.
-- Manejar idempotencia al consumir colas si se agregan publicaciones/confirmaciones.
-- Añadir publicación de eventos a Orders/Stats tras transiciones de estado.
-
 **Desarrollo**
 - Código principal: `app/`
 - Ejecutar tests/lint (si se agregan) desde el contenedor `backend`.
