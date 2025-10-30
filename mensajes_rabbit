@@ -1,3 +1,25 @@
+# CREAR PAGO
 {"nro_cuenta": "12345678", "monto_pagado": 1500.75, "order_id": 42, "metodo_pago_id": 1}
 
+# CANCELAR PAGO
 {"payment_id": 1}
+
+# CAMBIO DE ESTADO
+
+Por id:
+{"payment_id": 123, "status_id": 2}
+
+Por nombre:
+{"payment_id": 123, "new_status": "Realizado"}
+{"payment_id": 123, "new_status": "Fallido"}
+
+# CREAR NUEVO METODO DE PAGO (en swagger o con cURL)
+{
+  "usuario_id": 1,
+  "tipo_pago_id": 1,
+  "marca_pago_id": 1,
+  "gateway_pago_id": 1,
+  "es_default": true,
+  "identificador_wallet": "abcdefg123456"
+}
+

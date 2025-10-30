@@ -17,9 +17,17 @@ Servicio responsable de gestionar pagos de las compras, mantener los métodos de
 - `Docker` y `docker compose` para orquestación.
 
 **Estructura Relevante**
-- API HTTP: `app/api.py:27`, `app/api.py:109`, `app/api.py:162`, `app/api.py:178`.
+- API, definidos en `app/api.py`:
+  - `GET /api/`
+  - `POST /api/create_payment`
+  - `POST /api/create_payment_method`
+  - `GET /api/get_payment_methods/{usuario_id}`
+  - `PATCH /api/update_payment_method/{pm_id}`
+  - `DELETE /api/delete_payment_method/{pm_id}`
+  - `GET /api/cancel_payment/{payment_id}`
 - Lógica de negocio de pagos: `app/services/payments.py`.
 - Consumidores de RabbitMQ: `app/rabbit_consumer.py`.
+- Publisher RabbitMQ (helper): `app/rabbit_publisher.py`.
 - Modelos: `app/models/*` (pagos, estados, métodos, marcas, gateways, tipos).
 - Configuración: `app/config.py`, variables en `.env`.
 - Migraciones Alembic: `alembic/`, `alembic.ini`.
@@ -39,13 +47,27 @@ Ejemplos rápidos con curl:
 - Cancelar pago: `curl http://localhost:8005/api/cancel_payment/1`
 
 **Mensajería Asíncrona (RabbitMQ)**
-Consumidores:
-- Cola `payments`: crea pagos a partir de mensajes con payload: `{ "nro_cuenta": "12345678", "monto_pagado": 1500.75, "order_id": 42, "metodo_pago_id": 1 }`
-- Cola `payments_cancel`: cancela pagos a partir de mensajes con payload: `{ "payment_id": 1 }`
+Consumidores (app/rabbit_consumer.py):
+- Cola `payments`: crea pagos a partir de mensajes con payload: `{ "nro_cuenta": "12345678", "monto_pagado": 1500.75, "order_id": 42, "metodo_pago_id": 1 }`.
+- Cola `payments_cancel`: cancela pagos con payload: `{ "payment_id": 1 }`.
+- Cola `payments_set_status` (configurable `PAYMENTS_SET_STATUS_QUEUE`): actualiza el estado de un pago. Acepta:
+  - Por id: `{ "payment_id": 123, "status_id": 2 }`
+  - Por nombre: `{ "payment_id": 123, "new_status": "Realizado" }` o `"Fallido"`.
 
-Archivo de ejemplos: `mensajes_rabbit`.
+Publisher (app/rabbit_publisher.py + services):
+- Cola de salida `payments_status` (configurable `PAYMENTS_STATUS_QUEUE`): se publica evento cuando cambia el estado de un pago.
+- Se dispara al cancelar un pago y al actualizar estado desde `change_payment_status_logic`.
+- Formato del evento publicado:
+  `{
+    "event": "payment_status_changed",
+    "payment_id": <int>,
+    "order_id": <int>,
+    "previous_status": "En Proceso" | "Realizado" | "Fallido" | "Cancelado" | null,
+    "new_status": "Realizado" | "Fallido" | "Cancelado",
+    "changed_at": "<ISO8601>"
+  }`
 
-Nota sobre notificaciones: La publicación de eventos hacia otros servicios (Orders, Stats) está prevista en el diseño, pero no se observa lógica de publicación en este repositorio aún. Los puntos naturales para publicar serían tras crear/cancelar un pago en `app/services/payments.py`.
+Archivo de ejemplos: `mensajes_rabbit` (contiene ejemplos de creación y cancelación). Para probar cambio de estado, publicar en `payments_set_status` un JSON como los de arriba.
 
 **Puesta en Marcha con Docker**
 Pre-requisitos: Docker y Docker Compose instalados.
@@ -91,4 +113,3 @@ Seeds iniciales: ver `seeds/seed_payment_data.py`.
 
 **Licencia**
 No especificada.
-
