@@ -1,14 +1,14 @@
-Payments Service (Microservicio de Pagos)
+# Payments Service (Microservicio de Pagos)
 
 Servicio responsable de gestionar pagos de las compras, mantener los métodos de pago de los usuarios y propagar eventos de estado de pago de forma asíncrona mediante RabbitMQ.
 
-**Responsabilidades**
+### **Responsabilidades**
 - Procesa pagos de usuarios de compras.
 - Notifica (async) el estado del pago para otros servicios como Orders y Stats.
 - Permite cancelar un pago asociado a una orden.
 - Mantiene los métodos/formas de pago habilitados por usuario.
 
-**Stack Técnico**
+### **Stack Técnico**
 - `FastAPI` para la API HTTP (`app/main.py`, `app/api.py`).
 - `SQLAlchemy` + `Alembic` para ORM y migraciones.
 - `PostgreSQL` (imagen PostGIS) como base de datos.
@@ -16,7 +16,7 @@ Servicio responsable de gestionar pagos de las compras, mantener los métodos de
 - `aio-pika` para consumir colas.
 - `Docker` y `docker compose` para orquestación.
 
-**Estructura Relevante**
+### **Estructura Relevante**
 - API, definidos en `app/api.py`:
   - `GET /api/`
   - `POST /api/create_payment`
@@ -33,7 +33,7 @@ Servicio responsable de gestionar pagos de las compras, mantener los métodos de
 - Migraciones Alembic: `alembic/`, `alembic.ini`.
 - Seeds de datos: `seeds/seed_payment_data.py`.
 
-**Endpoints HTTP**
+### **Endpoints HTTP**
 Prefijo común: `/api`
 - `POST /api/create_payment` — Crea un pago. Body: `{ nro_cuenta, monto_pagado, order_id, metodo_pago_id }`.
 - `GET /api/cancel_payment/{payment_id}` — Cancela un pago si su estado lo permite.
@@ -46,7 +46,7 @@ Ejemplos rápidos con curl:
 - Crear pago: `curl -X POST http://localhost:8005/api/create_payment -H 'Content-Type: application/json' -d '{"nro_cuenta":"12345678","monto_pagado":1500.75,"order_id":42,"metodo_pago_id":1}'`
 - Cancelar pago: `curl http://localhost:8005/api/cancel_payment/1`
 
-**Mensajería Asíncrona (RabbitMQ)**
+### **Mensajería Asíncrona (RabbitMQ)**
 Consumidores (app/rabbit_consumer.py):
 - Cola `payments`: crea pagos a partir de mensajes con payload: `{ "nro_cuenta": "12345678", "monto_pagado": 1500.75, "order_id": 42, "metodo_pago_id": 1 }`.
 - Cola `payments_cancel`: cancela pagos con payload: `{ "payment_id": 1 }`.
@@ -69,7 +69,7 @@ Publisher (app/rabbit_publisher.py + services):
 
 Archivo de ejemplos: `mensajes_rabbit` (contiene ejemplos de creación y cancelación). Para probar cambio de estado, publicar en `payments_set_status` un JSON como los de arriba.
 
-**Puesta en Marcha con Docker**
+### **Puesta en Marcha con Docker**
 Pre-requisitos: Docker y Docker Compose instalados.
 1) Configurar variables en `.env` (ya incluye valores por defecto):
    - `DATABASE_URL=postgresql+psycopg2://postgres:root@db:5432/payments`
@@ -84,7 +84,7 @@ Servicios expuestos:
 - RabbitMQ Management UI: `http://localhost:15672` (usuario y password según `.env`)
 - PostgreSQL: `localhost:5432`
 
-**Ejecución Local (sin Docker)**
+### **Ejecución Local (sin Docker)**
 - Python 3.11+
 - `python -m venv .venv && source .venv/bin/activate`
 - `pip install -r requirements.txt`
@@ -93,17 +93,14 @@ Servicios expuestos:
 - API: `uvicorn app.main:app --host 0.0.0.0 --port 8005 --reload`
 - Consumer: `python -m app.rabbit_consumer`
 
-**Modelo de Datos (resumen)**
+### **Modelo de Datos (resumen)**
 - `estado_pago`: catálogos de estados (En Proceso, Realizado, Fallido, Cancelado).
 - `pagos`: registro de pagos (`nro_cuenta`, `monto_pagado`, `estado_actual`, `orden_id`, `metodo_pago_id`).
 - `metodos_pago`: métodos por usuario (tipo, marca, gateway, default, wallet, últimos 4 dígitos).
 - Catálogos: `tipos_metodos_pago`, `marcas_metodos_pago`, `gateways_metodos_pago`.
 Seeds iniciales: ver `seeds/seed_payment_data.py`.
 
-**Desarrollo**
+### **Desarrollo**
 - Código principal: `app/`
 - Ejecutar tests/lint (si se agregan) desde el contenedor `backend`.
 - Migraciones: `alembic revision -m "mensaje"` y `alembic upgrade head`.
-
-**Licencia**
-No especificada.
