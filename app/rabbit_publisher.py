@@ -64,7 +64,7 @@ async def publish_json(
     await default_exchange.publish(message, routing_key=queue_name)
 
 
-def publish_json_background(queue_name: str, payload: Mapping[str, Any]) -> None:
+def publish_message(queue_name: str, payload: Mapping[str, Any]) -> None:
     """Dispara la publicación sin bloquear la ejecución actual."""
     try:
         loop = asyncio.get_running_loop()

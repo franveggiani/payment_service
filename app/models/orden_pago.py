@@ -16,5 +16,5 @@ class OrdenPago(Base):
     fecha_hora_baja = Column(DateTime, nullable=True)
     nombre_estado = Column(String, nullable=False)
 
-    pagos = relationship("Pago", back_populates="orden_pago_list")
+    pago = relationship("Pago", back_populates="ordenes_pago")
     estado_pago = relationship("EstadoPago")

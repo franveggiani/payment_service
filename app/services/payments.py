@@ -1,7 +1,8 @@
+from fastapi import HTTPException
 import os
 from datetime import datetime
 
-from app.models import metodo_pago
+from app.models.metodo_pago import MetodoPago
 from app.models import estado_pago
 from sqlalchemy.orm import Session
 
@@ -9,7 +10,7 @@ from app.crud import getEstadoPorNombre
 from app.models.estado_pago import EstadoPago
 from app.models.pago import Pago
 from app.schemes import create_payment_out, create_payment_request
-from app.rabbit_publisher import publish_json_background
+from app.rabbit_publisher import publish_message
 
 STATUS_QUEUE = os.getenv("PAYMENTS_STATUS_QUEUE", "payments_status")
 
@@ -18,10 +19,18 @@ def create_payment_logic(request: create_payment_request, db: Session) -> create
     estado_pago = getEstadoPorNombre("En Proceso", db)
     if estado_pago is None:
         raise Exception("Estado pendiente no encontrado")
+    
+    # Verificar existencia del método de pago
+    metodo_pago: MetodoPago | None = (
+        db.query(MetodoPago)
+        .filter(MetodoPago.id == request.metodo_pago_id)
+        .first()
+    )
+
+    if not metodo_pago:
+        raise HTTPException(status_code=404, detail="No existe el método de pago ingresado")
 
     payment = Pago(
-        nro_cuenta=request.nro_cuenta,
-        monto_pagado=request.monto_pagado,
         estado_actual=estado_pago.id,
         orden_id=request.order_id,
         metodo_pago_id=request.metodo_pago_id
@@ -32,7 +41,7 @@ def create_payment_logic(request: create_payment_request, db: Session) -> create
     db.refresh(payment)
 
     # Publicar evento de nuevo pago / cambio de estado inicial
-    publish_json_background(
+    publish_message(
         STATUS_QUEUE,
         {
             "event": "payment_status_changed",
@@ -45,8 +54,8 @@ def create_payment_logic(request: create_payment_request, db: Session) -> create
     )
 
     return create_payment_out(
-        nro_cuenta=payment.nro_cuenta,
-        monto_pagado=payment.monto_pagado,
+        payment_id = payment.id,
+        order_id = payment.orden_id,
         estado=estado_pago.nombre_estado,
     )
 
@@ -73,8 +82,8 @@ def cancel_payment_logic(payment_id: int, db: Session) -> dict:
     pago.estado_actual = estado_cancelado.id
     db.commit()
 
-    # Publicar evento de cambio de estado (async, no bloqueante)
-    publish_json_background(
+    # Publicar evento de cambio de estado
+    publish_message(
         STATUS_QUEUE,
         {
             "event": "payment_status_changed",
@@ -111,7 +120,7 @@ def change_payment_status_logic(payment_id: int, status_id: int, db: Session):
     pago.estado_actual = nuevo_estado.id
     db.commit()
 
-    publish_json_background(
+    publish_message(
         STATUS_QUEUE,
         {
             "event": "payment_status_changed",

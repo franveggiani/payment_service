@@ -7,7 +7,7 @@ services:
     env_file:
       - .env
     ports:
-      - "8005:8005"
+      - "8888:8005"
     volumes:
       - .:/app
     environment:
@@ -18,7 +18,7 @@ services:
       - rabbitmq
       - db-seeder
       - consumer
-
+      
   rabbitmq:
     image: rabbitmq:3.13-management
     container_name: payments_rabbit
@@ -41,7 +41,7 @@ services:
       POSTGRES_PASSWORD: ${DB_PASSWORD}
       POSTGRES_DB: ${DATABASE}
     ports:
-      - "5432:5432"
+      - "5433:5432"
     volumes:
       - ./initdb:/docker-entrypoint-initdb.d
       - pgdata:/var/lib/postgresql/data

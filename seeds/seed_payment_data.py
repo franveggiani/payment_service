@@ -6,10 +6,12 @@ from sqlalchemy.orm import sessionmaker
 
 from app.config import DATABASE_URL
 from app import models  # noqa: F401  # ensure models are loaded
-from app.models.gateway_metodo_pago import GatewayMetodoPago
+from app.models.gateway_metodo_pago import ProveedorBilletera
 from app.models.marca_metodo_pago import MarcaMetodoPago
 from app.models.tipo_metodo_pago import TipoMetodoPago
 from app.models.estado_pago import EstadoPago
+from app.models.banco import Banco           # <-- NUEVO
+from app.models.moneda import Moneda         # <-- NUEVO
 
 logger = logging.getLogger(__name__)
 
@@ -38,17 +40,55 @@ def main() -> None:
     try:
         logger.info("Seeding static payment method data.")
 
+        # Tipos de método
         for nombre_metodo in ("Debito", "Credito", "Billetera"):
             get_or_create(session, TipoMetodoPago, nombre_metodo=nombre_metodo)
 
+        # Proveedores / Gateways de billetera
         for nombre_gateway in ("Paypal", "Mercado Pago"):
-            get_or_create(session, GatewayMetodoPago, nombre_gateway=nombre_gateway)
+            get_or_create(session, ProveedorBilletera, nombre_gateway=nombre_gateway)
 
+        # Marcas de tarjeta
         for nombre_marca in ("Visa", "Mastercard"):
             get_or_create(session, MarcaMetodoPago, nombre_marca=nombre_marca)
 
+        # Estados de pago
         for nombre_estado in ("En Proceso", "Realizado", "Fallido", "Cancelado"):
             get_or_create(session, EstadoPago, nombre_estado=nombre_estado)
+
+        # -------------------------
+        # NUEVO: Bancos
+        # -------------------------
+        bancos_arg = (
+            "Banco de la Nación Argentina",
+            "Banco de la Provincia de Buenos Aires",
+            "Banco Ciudad de Buenos Aires",
+            "Banco Santander",
+            "BBVA",
+            "Banco Macro",
+            "Banco Galicia",
+            "ICBC",
+            "HSBC",
+            "Banco Credicoop",
+        )
+        for nombre_banco in bancos_arg:
+            get_or_create(session, Banco, nombre_banco=nombre_banco)
+
+        # -------------------------
+        # NUEVO: Monedas
+        # (usamos códigos comunes como nombre para consistencia)
+        # -------------------------
+        monedas = (
+            "ARS",  # Peso argentino
+            "USD",  # Dólar estadounidense
+            "EUR",  # Euro
+            "BRL",  # Real brasileño
+            "CLP",  # Peso chileno
+            "UYU",  # Peso uruguayo
+            "PYG",  # Guaraní paraguayo
+        )
+        for moneda_nombre in monedas:
+            get_or_create(session, Moneda, moneda_nombre=moneda_nombre)
 
         session.commit()
         logger.info("Seed completed.")
