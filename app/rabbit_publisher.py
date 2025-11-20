@@ -5,7 +5,7 @@ from pathlib import Path
 from typing import Any, Mapping
 
 import aio_pika
-from aio_pika import Message, DeliveryMode
+from aio_pika import DeliveryMode, ExchangeType, Message
 from dotenv import load_dotenv
 
 
@@ -17,11 +17,13 @@ else:
     load_dotenv()
 
 RABBIT_URL = os.getenv("RABBITMQ_URL")
+RABBIT_EXCHANGE = os.getenv("RABBITMQ_EXCHANGE", "payments.events")
 
 _connection: aio_pika.RobustConnection | None = None
 _channel: aio_pika.abc.AbstractChannel | None = None
+_exchange: aio_pika.abc.AbstractExchange | None = None
 
-
+# ESTABLEZCO CONEXIÓN CON AIO_PIKA
 async def _ensure_channel() -> aio_pika.abc.AbstractChannel:
     global _connection, _channel
     if _connection is None or _connection.is_closed:
@@ -34,22 +36,26 @@ async def _ensure_channel() -> aio_pika.abc.AbstractChannel:
     return _channel
 
 
-async def publish_json(
-    queue_name: str,
-    payload: Mapping[str, Any],
-    *,
-    ensure_queue: bool = True,
-) -> None:
-    """Publica un mensaje JSON de forma asíncrona en la cola indicada.
-
-    Usa el default exchange con routing_key = queue_name.
-    """
-    # Conexión al broker
+async def _ensure_exchange() -> aio_pika.abc.AbstractExchange:
+    """Declara (si hace falta) el exchange fanout/topic usado para notificar microservicios."""
+    global _exchange
     channel = await _ensure_channel()
+    if _exchange is None or _exchange.is_closed:
+        _exchange = await channel.declare_exchange(
+            RABBIT_EXCHANGE,
+            ExchangeType.TOPIC,
+            durable=True,
+        )
+    return _exchange
 
-    # Si ensure_queue es true, aseguro que el mensaje es para tal cola
-    if ensure_queue:
-        await channel.declare_queue(queue_name, durable=True)
+
+async def publish_json(
+    routing_key: str,
+    payload: Mapping[str, Any],
+) -> None:
+    """Publica un mensaje JSON en el exchange fanout/topic configurado."""
+    # Cada microservicio (Orders, Stats, etc.) se liga con su cola al exchange
+    exchange = await _ensure_exchange()
 
     # Creo el mensaje
     body = json.dumps(payload).encode("utf-8")
@@ -59,32 +65,31 @@ async def publish_json(
         delivery_mode=DeliveryMode.PERSISTENT,
     )
 
-    # Por defecto, se usa el exchange que envía según la routing key (cola)
-    default_exchange = channel.default_exchange
-    await default_exchange.publish(message, routing_key=queue_name)
+    # Los servicios reciben el mensaje según el binding key de sus colas
+    await exchange.publish(message, routing_key=routing_key)
 
 
-def publish_message(queue_name: str, payload: Mapping[str, Any]) -> None:
+def publish_message(routing_key: str, payload: Mapping[str, Any]) -> None:
     """Dispara la publicación sin bloquear la ejecución actual."""
     try:
         loop = asyncio.get_running_loop()
-        loop.create_task(publish_json(queue_name, payload))
+        loop.create_task(publish_json(routing_key, payload))
     except RuntimeError:
         # Si no hay event loop (por ejemplo, en un hilo), ejecutar sincrónicamente
-        asyncio.run(publish_json(queue_name, payload))
+        asyncio.run(publish_json(routing_key, payload))
 
 
 async def close() -> None:
     """Cierra canal y conexión si están abiertos."""
-    global _channel, _connection
+    global _channel, _connection, _exchange
     try:
         if _channel and not _channel.is_closed:
             await _channel.close()
     finally:
         _channel = None
+        _exchange = None
     try:
         if _connection and not _connection.is_closed:
             await _connection.close()
     finally:
         _connection = None
-
